@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: Lambda that remediates issues with AWS resources
+
+Parameters:
+  IsMasterAccount:
+    Type: String
+    Default: true
+    Description: >
+      If set to 'true', this template will create the aws-remediation Lambda.
+      In case of a multi-account setup, you would like to set this value to 'false' for satellite accounts.
+    AllowedValues:
+      - true
+      - false
+  CreateSSMDocument:
+    Type: String
+    Default: true
+    Description: >
+      If set to 'true', this template will create SSM Automation Document to invoke the remediation Lambda.
+    AllowedValues:
+      - true
+      - false
+  MasterAccountId:
+    Type: String
+    Default: ""
+    Description: >
+      The AWS Account Id where the aws-remediation Lambda exists.
+      This property will only be used if 'IsMasterAccount' parameter is set to 'true'
+  LambdaLoggingLevel:
+    Type: String
+    Default: INFO
+    Description: >
+      The logging threshold for the remediation Lambda.
+      This property will only be used if 'IsMasterAccount' parameter is set to 'true'
+    AllowedValues:
+      - ERROR
+      - WARN
+      - INFO
+      - DEBUG
+  LambdaLogsRetentionDays:
+    Type: String
+    Default: 365
+    Description: >
+      The number of days to keep the Cloudwatch Logs of the remediation AWS Lambda.
+      This property will only be used if 'IsMasterAccount' parameter is set to 'true'
+
+Conditions:
+  IsMasterAccount: !Equals [ !Ref IsMasterAccount, true ]
+  CreateSSM: !Equals [ !Ref CreateSSMDocument, true ]
+
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: IsMasterAccount
+    Properties:
+      LogGroupName: /aws/lambda/aws-remediation
+      RetentionInDays: !Ref LambdaLogsRetentionDays
+
+  Function:
+    Type: AWS::Serverless::Function
+    Condition: IsMasterAccount
+    Properties:
+      CodeUri: src/
+      Description: Function that remediates issues with AWS resources
+      FunctionName: aws-remediation
+      Handler: app.main.lambda_handler
+      Environment:
+        Variables:
+          LOGGING_LEVEL: !Ref LambdaLoggingLevel
+      MemorySize: 128
+      Policies:
+        - Id: AssumeRemediationRole
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Resource: !Sub arn:aws:iam::*:role/${RemediationRole}
+      Runtime: python3.7
+      Timeout: 60
+
+  RemediationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AwsRemediationRole
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !If [IsMasterAccount, !Ref "AWS::AccountId", !Ref MasterAccountId ]
+            Action: sts:AssumeRole
+            Condition:
+              Bool:
+                aws:SecureTransport: true
+      Policies:
+        - PolicyName: AllowRemediativeActions
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudtrail:CreateTrail
+                  - cloudtrail:StartLogging
+                  - cloudtrail:UpdateTrail
+                  - dynamodb:UpdateTable
+                  - ec2:CreateFlowLogs
+                  - ec2:StopInstances
+                  - ec2:TerminateInstances
+                  - guardduty:CreateDetector
+                  - iam:CreateAccessKey
+                  - iam:CreateServiceLinkedRole
+                  - iam:DeleteAccessKey
+                  - iam:UpdateAccessKey
+                  - iam:UpdateAccountPasswordPolicy
+                  - kms:EnableKeyRotation
+                  - logs:CreateLogDelivery
+                  - rds:ModifyDBInstance
+                  - rds:ModifyDBSnapshotAttribute
+                  - s3:PutBucketVersioning
+                  - s3:PutBucketLogging
+                  - s3:PutBucketAcl
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutBucketPublicAccessBlock
+                Resource: '*'
+
+  InvokeRemediationLambdaDocument:
+    Type: AWS::SSM::Document
+    Condition: CreateSSM
+    Properties:
+      DocumentType: Automation
+      Content:
+        schemaVersion: "0.3"
+        description: Enable log file validation for existing CloudTrail trail
+        parameters:
+          RemediationId:
+            type: String
+            description: The Id of the remediation to invoke.
+          RemediationResource:
+            type: String
+            description: The JSON object that contains resource information
+            default: ""
+          RemediationParameters:
+            type: String
+            description: The JSON object that contains parameters for remediation
+            default: ""
+        mainSteps:
+          - name: remediate
+            action: aws:invokeLambdaFunction
+            timeoutSeconds: 60
+            maxAttempts: 3
+            onFailure: Abort
+            inputs:
+              FunctionName: aws-remediation
+              Payload: >
+                {
+                  "action":"remediate",
+                  "payload":{
+                    "remediationId": "{{RemediationId}}",
+                    "resource": {{RemediationResource}},
+                    "parameters": {{RemediationParameters}}
+                    }
+                }
+
+Outputs:
+  LambdaArn:
+    Description: >
+      The ARN of the aws-remediation Lambda.
+      If 'IsMasterAccount' parameter is set to 'true', this will contain empty value.
+    Value: !If [IsMasterAccount, !GetAtt Function.Arn, !Ref "AWS::NoValue"]

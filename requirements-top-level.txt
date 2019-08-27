@@ -1,0 +1,7 @@
+bandit
+boto3
+cfn-lint
+mypy
+nose2
+pylint
+yapf

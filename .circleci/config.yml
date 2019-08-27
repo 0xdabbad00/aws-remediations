@@ -1,0 +1,14 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      - image: circleci/python:3.7.4
+    steps:
+      - checkout
+      - run:
+          name: Setup venv and dependencies
+          command: make setup
+      - run:
+          name: Build project
+          command: make ci
