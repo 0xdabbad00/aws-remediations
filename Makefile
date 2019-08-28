@@ -23,3 +23,32 @@ test: # Run unit tests
 	nose2 --with-coverage --coverage src --coverage-config setup.cfg
 
 ci: fmt lint test
+
+sam-package:  # Build Dependencies (https://amzn.to/2MzGpXo), Generate CF, and upload package to S3
+	sam build --manifest requirements-runtime.txt --use-container
+	sam package \
+		--template-file .aws-sam/build/template.yaml \
+		--output-template-file template-out.yml \
+		--s3-bucket $(bucket) \
+		--s3-prefix remediations
+
+sam-deploy-master: sam-package # Deploy CF stack
+	sam deploy \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--stack-name remediations \
+		--s3-bucket $(bucket) \
+		--s3-prefix remediations \
+		--template-file template-out.yml
+
+sam-deploy-satellite: sam-package # Deploy CF stack
+	sam deploy \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--stack-name remediations \
+		--s3-bucket $(bucket) \
+		--s3-prefix remediations \
+		--template-file template-out.yml \
+		--parameter-overrides IsMasterAccount='false' CreateSSMDocument='false' MasterAccountId=$(masterAccountId)
+
+deploy-master: sam-package sam-deploy-master
+
+deploy-satellite: sam-package sam-deploy-satellite

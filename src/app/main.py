@@ -20,7 +20,7 @@ def lambda_handler(event: Dict[str, Any], unused_context: Any) -> Dict[Any, Any]
         {
           "action": "remediate",
           "payload": {
-            "remediationId": "AWS-S3BucketLogging",
+            "remediationId": "AWS.S3.EnableBucketLogging",
             "resource":
               {
                 "Name": "my-bucket",

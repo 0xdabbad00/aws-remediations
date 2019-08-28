@@ -5,33 +5,33 @@ Description: Lambda that remediates issues with AWS resources
 Parameters:
   IsMasterAccount:
     Type: String
-    Default: true
+    Default: 'true'
     Description: >
-      If set to 'true', this template will create the aws-remediation Lambda.
-      In case of a multi-account setup, you would like to set this value to 'false' for satellite accounts.
+      If set to 'True', this template will create the aws-remediation Lambda.
+      In case of a multi-account setup, you would like to set this value to 'False' for satellite accounts.
     AllowedValues:
-      - true
-      - false
+      - 'true'
+      - 'false'
   CreateSSMDocument:
     Type: String
-    Default: true
+    Default: 'true'
     Description: >
-      If set to 'true', this template will create SSM Automation Document to invoke the remediation Lambda.
+      If set to 'True', this template will create SSM Automation Document to invoke the remediation Lambda.
     AllowedValues:
-      - true
-      - false
+      - 'true'
+      - 'false'
   MasterAccountId:
     Type: String
-    Default: ""
+    Default: ''
     Description: >
       The AWS Account Id where the aws-remediation Lambda exists.
-      This property will only be used if 'IsMasterAccount' parameter is set to 'true'
+      This property will only be used if 'IsMasterAccount' parameter is set to 'False'
   LambdaLoggingLevel:
     Type: String
     Default: INFO
     Description: >
       The logging threshold for the remediation Lambda.
-      This property will only be used if 'IsMasterAccount' parameter is set to 'true'
+      This property will only be used if 'IsMasterAccount' parameter is set to 'True'
     AllowedValues:
       - ERROR
       - WARN
@@ -42,11 +42,11 @@ Parameters:
     Default: 365
     Description: >
       The number of days to keep the Cloudwatch Logs of the remediation AWS Lambda.
-      This property will only be used if 'IsMasterAccount' parameter is set to 'true'
+      This property will only be used if 'IsMasterAccount' parameter is set to 'True'
 
 Conditions:
-  IsMasterAccount: !Equals [ !Ref IsMasterAccount, true ]
-  CreateSSM: !Equals [ !Ref CreateSSMDocument, true ]
+  IsMasterAccount: !Equals [ !Ref IsMasterAccount, 'true' ]
+  CreateSSM: !Equals [ !Ref CreateSSMDocument, 'true' ]
 
 Resources:
   LogGroup:
@@ -88,7 +88,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !If [IsMasterAccount, !Ref "AWS::AccountId", !Ref MasterAccountId ]
+              AWS: !If [IsMasterAccount, !Ref 'AWS::AccountId', !Ref MasterAccountId ]
             Action: sts:AssumeRole
             Condition:
               Bool:
@@ -124,13 +124,13 @@ Resources:
                   - s3:PutBucketPublicAccessBlock
                 Resource: '*'
 
-  InvokeRemediationLambdaDocument:
+  InvokeRemediation:
     Type: AWS::SSM::Document
     Condition: CreateSSM
     Properties:
       DocumentType: Automation
       Content:
-        schemaVersion: "0.3"
+        schemaVersion: '0.3'
         description: Enable log file validation for existing CloudTrail trail
         parameters:
           RemediationId:
@@ -139,11 +139,11 @@ Resources:
           RemediationResource:
             type: String
             description: The JSON object that contains resource information
-            default: ""
+            default: '{}'
           RemediationParameters:
             type: String
             description: The JSON object that contains parameters for remediation
-            default: ""
+            default: '{}'
         mainSteps:
           - name: remediate
             action: aws:invokeLambdaFunction
@@ -151,14 +151,14 @@ Resources:
             maxAttempts: 3
             onFailure: Abort
             inputs:
-              FunctionName: aws-remediation
+              FunctionName: !Ref Function
               Payload: >
                 {
-                  "action":"remediate",
-                  "payload":{
-                    "remediationId": "{{RemediationId}}",
-                    "resource": {{RemediationResource}},
-                    "parameters": {{RemediationParameters}}
+                  'action':'remediate',
+                  'payload':{
+                    'remediationId': '{{RemediationId}}',
+                    'resource': {{RemediationResource}},
+                    'parameters': {{RemediationParameters}}
                     }
                 }
 
@@ -166,5 +166,10 @@ Outputs:
   LambdaArn:
     Description: >
       The ARN of the aws-remediation Lambda.
-      If 'IsMasterAccount' parameter is set to 'true', this will contain empty value.
-    Value: !If [IsMasterAccount, !GetAtt Function.Arn, !Ref "AWS::NoValue"]
+      If 'IsMasterAccount' parameter is set to 'True', this will contain empty value.
+    Value: !If [IsMasterAccount, !GetAtt Function.Arn, '']
+  SSMDocument:
+    Description: >
+      The name of the SSM document for invoking remediation actions
+      If 'CreateSSMDocument' parameter is set to 'True', this will contain empty value.
+    Value: !If [CreateSSM, !Ref InvokeRemediation, '']
