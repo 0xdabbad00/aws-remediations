@@ -52,3 +52,6 @@ sam-deploy-satellite: sam-package # Deploy CF stack
 deploy-master: sam-package sam-deploy-master
 
 deploy-satellite: sam-package sam-deploy-satellite
+
+deploy-sar: # To associate an IAM role with the stack, add the param role="--role-arn <aws-role-arn>"
+	aws cloudformation deploy --stack-name panther-aws-remediations --template-file template-sar.yml --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND --region $(region) $(role)

@@ -1,37 +1,22 @@
 AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::Serverless-2016-10-31
-Description: Lambda that remediates issues with AWS resources
+Description: A Lambda function to fix misconfigured resources in AWS accounts
 
 Parameters:
-  IsMasterAccount:
-    Type: String
-    Default: 'true'
-    Description: >
-      If set to 'True', this template will create the aws-remediation Lambda.
-      In case of a multi-account setup, you would like to set this value to 'False' for satellite accounts.
-    AllowedValues:
-      - 'true'
-      - 'false'
   CreateSSMDocument:
     Type: String
     Default: 'true'
     Description: >
-      If set to 'True', this template will create SSM Automation Document to invoke the remediation Lambda.
+      If set to 'true', this template will create SSM Automation Document to invoke the remediation Lambda.
     AllowedValues:
       - 'true'
       - 'false'
-  MasterAccountId:
-    Type: String
-    Default: ''
-    Description: >
-      The AWS Account Id where the aws-remediation Lambda exists.
-      This property will only be used if 'IsMasterAccount' parameter is set to 'False'
   LambdaLoggingLevel:
     Type: String
     Default: INFO
     Description: >
       The logging threshold for the remediation Lambda.
-      This property will only be used if 'IsMasterAccount' parameter is set to 'True'
+      This property will only be used if 'IsMasterAccount' parameter is set to 'true'
     AllowedValues:
       - ERROR
       - WARN
@@ -42,11 +27,28 @@ Parameters:
     Default: 365
     Description: >
       The number of days to keep the Cloudwatch Logs of the remediation AWS Lambda.
-      This property will only be used if 'IsMasterAccount' parameter is set to 'True'
+      This property will only be used if 'IsMasterAccount' parameter is set to 'true'
+  IsMasterAccount:
+    Type: String
+    Default: 'true'
+    Description: >
+      If set to 'true', this template will create the aws-remediation Lambda.
+      In case of a multi-account setup, you would like to set this value to 'false' for satellite accounts.
+    AllowedValues:
+      - 'true'
+      - 'false'
+  MasterAccountId:
+    Type: String
+    Default: ''
+    Description: >
+      The AWS Account Id where the aws-remediation Lambda exists.
+      This property will only be used if 'IsMasterAccount' parameter is set to 'false'
 
 Conditions:
   IsMasterAccount: !Equals [ !Ref IsMasterAccount, 'true' ]
-  CreateSSM: !Equals [ !Ref CreateSSMDocument, 'true' ]
+  CreateSSM: !And
+    - !Equals [ !Ref CreateSSMDocument, 'true' ]
+    - !Condition IsMasterAccount
 
 Resources:
   LogGroup:
@@ -166,10 +168,10 @@ Outputs:
   LambdaArn:
     Description: >
       The ARN of the aws-remediation Lambda.
-      If 'IsMasterAccount' parameter is set to 'True', this will contain empty value.
+      If 'IsMasterAccount' parameter is set to 'true', this will contain empty value.
     Value: !If [IsMasterAccount, !GetAtt Function.Arn, '']
   SSMDocument:
     Description: >
       The name of the SSM document for invoking remediation actions
-      If 'CreateSSMDocument' parameter is set to 'True', this will contain empty value.
+      If 'CreateSSMDocument' parameter is set to 'true', this will contain empty value.
     Value: !If [CreateSSM, !Ref InvokeRemediation, '']

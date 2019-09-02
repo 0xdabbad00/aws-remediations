@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: Instantly remediate common security issues in your accounts
+
+Resources:
+  AWSRemediationsApp:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location:
+        ApplicationId: arn:aws:serverlessrepo:us-east-1:349240696275:applications/aws-remediations
+        SemanticVersion: 0.1.0
+      # Modify the parameters according to your desired setup
+      Parameters:
+        IsMasterAccount: 'true'
+        CreateSSMDocument: 'true'
+        LambdaLoggingLevel: 'INFO'
+        LambdaLogsRetentionDays: 365
