@@ -12,7 +12,7 @@ import app.logging
 from app.exceptions import RemediationException, RemediationNotAuthorized
 
 _STS_CLIENT_MAP: Dict[str, BaseClient] = {}
-
+_DEFAULT_STS_REGION = 'us-east-1'
 
 class RemediationBase:
     """Base class for all remediations"""
@@ -82,6 +82,11 @@ class RemediationBase:
             account_id: The id of the account where we will assume the role
         """
         cls.logger.info('Getting session for account %s for region %s', account_id, region)
+
+        # Some resources are global (e.g. IAM roles) - so we defaulting to _DEFAULT_STS_REGION
+        if region == "global":
+            region = _DEFAULT_STS_REGION
+
         credentials = cls._get_credentials(account_id, region).get_frozen_credentials()
         return boto3.session.Session(
             aws_access_key_id=credentials.access_key,
