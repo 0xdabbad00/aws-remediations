@@ -16,3 +16,7 @@ class RemediationNotAuthorized(RemediationException):
 
 class InvalidInput(Exception):
     """Exception thrown when input to Lambda is invalid"""
+
+
+class InvalidParameterException(RemediationException):
+    """Exception thrown when a remediation was provided an an invalid parameter"""
