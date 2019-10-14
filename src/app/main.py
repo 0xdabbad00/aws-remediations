@@ -1,51 +1,24 @@
-from typing import Any, Dict
+import app.logging
+import boto3
+from urllib.parse import unquote_plus
+import s3fs
+from pyarrow.filesystem import S3FSWrapper
+import pyarrow.parquet as pq
 
-from . import Remediation
-from .exceptions import InvalidInput
-
-
-def lambda_handler(event: Dict[str, Any], unused_context: Any) -> Dict[Any, Any]:
-    """Main lambda handler use as the entry point for the application
-
-    Args:
-        event: Event object that contains the invocation payload. There are two type of events
-        currently supported:
-        1. 'listRemediations' event: The Lambda will return the available remediations
-        and the parameters used by the remediation.
-        2. 'remediate' event: The Lambda invokes the appropriate remediation.
-
-        unused_context: AWS LambdaContext object
-
-    Examples:
-        {
-          "action": "remediate",
-          "payload": {
-            "remediationId": "AWS.S3.EnableBucketLogging",
-            "resource":
-              {
-                "Name": "my-bucket",
-                "AccountId": "123456789012",
-                "Region": "us-west-2",
-              }
-            ,
-            "parameters": {
-              "TargetBucket": "log-bucket",
-              "TargetPrefix": "s3-access"
-            }
-          }
-        }
+logger = app.logging.get_logger()
+s3client = boto3.client('s3')
+fs = s3fs.S3FileSystem()
 
 
-
-        {
-          "action": "listRemediations"
-        }
-    """
-    if 'action' not in event:
-        raise InvalidInput('Input missing "action" parameter')
-    if event['action'] == 'listRemediations':
-        return Remediation.get_all_remediations()
-    if event['action'] == 'remediate':
-        Remediation.get(event['payload']['remediationId'])().fix(event['payload'])
-        return {}
-    raise InvalidInput('Unknown action "{}"'.format(event['action']))
+def lambda_handler(event, context):
+    for record in event['Records']:
+        bucket = record['s3']['bucket']['name']
+        key = unquote_plus(record['s3']['object']['key'])
+        bucket_uri = 's3://{}/{}'.format(bucket, key)
+        logger.info('Got Event %s %s', bucket, key)
+        # readobject = s3client.get_object(Bucket=bucket, Key=key)
+        # pyarrow.parquet.read_table()
+        # reader = pyarrow.ipc.open_file(readobject['Body'])
+        dataset = pq.ParquetDataset(bucket_uri, filesystem=fs)
+        table = dataset.read()
+        logger.info('Found stuff {}'.format(table.num_rows))

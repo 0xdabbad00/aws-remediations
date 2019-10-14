@@ -5,3 +5,5 @@ mypy
 nose2
 pylint
 yapf
+s3fs
+pyarrow
