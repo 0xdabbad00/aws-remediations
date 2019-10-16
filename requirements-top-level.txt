@@ -1,7 +1,7 @@
 bandit
 boto3
 cfn-lint
-mypy
+mypy==0.720
 nose2
 pylint
 yapf

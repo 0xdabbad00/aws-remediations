@@ -14,6 +14,7 @@ from app.exceptions import RemediationException, RemediationNotAuthorized
 _STS_CLIENT_MAP: Dict[str, BaseClient] = {}
 _DEFAULT_STS_REGION = 'us-east-1'
 
+
 class RemediationBase:
     """Base class for all remediations"""
     logger = app.logging.get_logger()

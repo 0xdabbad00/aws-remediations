@@ -24,6 +24,10 @@ test: # Run unit tests
 
 ci: fmt lint test
 
+update-requirements:
+	pip3 install -r requirements-top-level.txt --upgrade
+	pip freeze -r requirements-top-level.txt > requirements.txt
+
 sam-package:  # Build Dependencies (https://amzn.to/2MzGpXo), Generate CF, and upload package to S3
 	sam build --manifest requirements-runtime.txt --use-container
 	sam package \
